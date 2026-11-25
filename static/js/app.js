@@ -3,10 +3,11 @@
  *
  * DEMO_MODE = true  => hasil contoh dibuat di browser (backend belum dipakai).
  * DEMO_MODE = false => hasil diambil dari endpoint /predict (Flask + model CNN).
- * Nanti cukup ubah satu baris ini saat backend siap.
  */
-const DEMO_MODE = true;
+const DEMO_MODE = false;
 const DEMO_DELAY = 1100;
+
+const FRUIT_NAMES = { Apple: "Apel", Banana: "Pisang", Orange: "Jeruk" };
 
 const input = document.getElementById("imageInput");
 const dropZone = document.getElementById("dropZone");
@@ -153,16 +154,18 @@ function stopLoading() {
   resultCard.style.opacity = "";
 }
 
-function showResult(label, confidence) {
+function showResult(label, confidence, result = {}) {
   const isFresh = label === "Segar";
+  const fruit = FRUIT_NAMES[result.fruit] || result.fruit;
+  const condition = isFresh ? "segar" : "busuk";
 
   resultCard.classList.toggle("is-fresh", isFresh);
   resultCard.classList.toggle("is-rotten", !isFresh);
   setBadge(isFresh ? "Segar" : "Busuk", isFresh ? "fresh" : "rotten");
   resultIconUse.setAttribute("href", isFresh ? "#i-check" : "#i-x");
-  resultDescription.textContent = isFresh
-    ? "Buah teridentifikasi dalam kondisi segar."
-    : "Buah teridentifikasi dalam kondisi busuk.";
+  resultDescription.textContent = fruit
+    ? `Buah teridentifikasi sebagai ${fruit} dalam kondisi ${condition}.`
+    : `Buah teridentifikasi dalam kondisi ${condition}.`;
   confidenceValue.textContent = `${confidence}%`;
 
   // Animasikan meter dari 0 ke nilai confidence.
@@ -170,7 +173,12 @@ function showResult(label, confidence) {
   requestAnimationFrame(() => { confidenceFill.style.width = `${Math.min(100, Math.max(0, confidence))}%`; });
 
   setSteps(3);
-  setStatus("Analisis berhasil diselesaikan.", "success");
+  setStatus(
+    result.is_uncertain
+      ? "Keyakinan model masih rendah. Coba gunakan foto buah yang lebih jelas."
+      : "Analisis berhasil diselesaikan.",
+    result.is_uncertain ? "info" : "success"
+  );
 }
 
 function wait(ms) {
@@ -206,7 +214,7 @@ predictButton.addEventListener("click", async () => {
       if (!response.ok) throw new Error(data.error || "Prediksi gagal.");
       result = data;
     }
-    showResult(result.label, Number(result.confidence));
+    showResult(result.label, Number(result.confidence), result);
   } catch (error) {
     setStatus(error.message, "error");
     setSteps(2);

@@ -1,6 +1,7 @@
-# CekBuah – Flask Starter
+# CekBuah – Flask + MobileNetV2
 
-Template awal aplikasi web untuk klasifikasi kesegaran buah dengan dua kelas: **Segar** dan **Busuk**.
+Aplikasi web klasifikasi kesegaran buah (Apel, Pisang, Jeruk → Segar/Busuk)
+menggunakan model `MobileNetV2` yang sudah dilatih.
 
 ## Struktur folder
 
@@ -8,6 +9,9 @@ Template awal aplikasi web untuk klasifikasi kesegaran buah dengan dua kelas: **
 cekbuah_flask/
 ├── app.py
 ├── requirements.txt
+├── model/
+│   ├── best_mobilenetv2_fruit.keras
+│   └── labels.json
 ├── templates/
 │   └── index.html
 └── static/
@@ -24,7 +28,7 @@ cekbuah_flask/
    python -m venv venv
    ```
 3. Aktifkan environment:
-   - Windows: `venv\\Scripts\\activate`
+   - Windows: `venv\Scripts\activate`
    - macOS/Linux: `source venv/bin/activate`
 4. Install dependensi:
    ```bash
@@ -36,24 +40,41 @@ cekbuah_flask/
    ```
 6. Buka `http://127.0.0.1:5000` pada browser.
 
+Model dimuat lazily saat prediksi pertama dan disimpan di memori untuk
+permintaan berikutnya, sehingga startup server tetap cepat.
+
+## Endpoint `/predict`
+
+- Method: `POST`, field form-data: `image` (JPG/JPEG/PNG, maks. 5 MB).
+- Contoh respons:
+
+```json
+{
+  "label": "Segar",
+  "confidence": 97.42,
+  "fruit": "Apple",
+  "predicted_class": "FreshApple",
+  "is_uncertain": false,
+  "all_probabilities": { "FreshApple": 0.9742, "...": 0.0 },
+  "image_url": "/static/uploads/<nama>.jpg"
+}
+```
+
+`confidence` dikirim dalam persen (0–100) agar sesuai dengan tampilan UI;
+`is_uncertain` bernilai `true` jika confidence model di bawah 0,80.
+
+Preprocessing di `preprocess_image()` mengikuti pipeline training:
+EXIF transpose → RGB → resize 224×224 (bilinear) → `float32` [0, 255].
+Layer `preprocess_input` sudah tertanam di dalam file `.keras`, jadi tidak
+perlu dipanggil manual.
+
 ## Mode demo frontend
 
-Saat ini alur **unggah gambar → prediksi → hasil** dapat dicoba tanpa model CNN. Di `static/js/app.js`, baris paling atas berisi:
+Jika ingin mencoba tampilan tanpa model, ubah di `static/js/app.js`:
 
 ```js
 const DEMO_MODE = true;
 ```
 
-Hasil yang ditampilkan adalah contoh. Setelah model CNN dihubungkan pada `predict_freshness(image_path)`, ubah menjadi `const DEMO_MODE = false;` agar tombol Prediksi memanggil endpoint `/predict`.
-
-## Integrasi model
-
-Endpoint `/predict` sudah menerima file, memeriksa format dan ukuran, lalu menyimpan gambar di `static/uploads/`.
-
-Model belum disambungkan. Letakkan kode pemuatan model, preprocessing, dan inferensi pada fungsi `predict_freshness(image_path)` di `app.py`. Fungsi tersebut harus mengembalikan dictionary seperti:
-
-```python
-{"label": "Segar", "confidence": 96.7}
-```
-
-Nilai di atas hanya contoh format respons, bukan hasil model. Jangan gunakan confidence contoh sebagai hasil prediksi sungguhan.
+Nilai bawaan adalah `false`, sehingga tombol Prediksi memanggil endpoint
+`/predict` dan memakai hasil model sungguhan.
