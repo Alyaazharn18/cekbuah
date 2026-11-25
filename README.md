@@ -66,8 +66,13 @@ Catatan deployment:
   `model/`, `templates/`, dan `static/` ikut ter-bundle. File `.keras`
   (sekitar 24 MB) tidak perlu disimpan di Vercel Blob.
 - Backend Keras yang dipakai adalah **JAX CPU** (`KERAS_BACKEND=jax`,
-  di-set otomatis di `app.py`). Ini jauh lebih ringan daripada TensorFlow
-  sehingga bundle tetap di bawah batas 500 MB untuk Python di Vercel.
+  di-set otomatis di `app.py`). Versi sudah di-pin di `requirements.txt`:
+  `keras==3.13.2`, `jax[cpu]==0.4.30`, `numpy==2.4.6`, `scipy==1.17.1`.
+  Kombinasi ini sudah diuji dengan model dan total bundle diperkirakan
+  ~470 MB (di bawah batas 500 MB Python di Vercel). **Jangan upgrade
+  `jax[cpu]` ke versi terbaru**: `jaxlib` bisa membengkak di atas 200 MB
+  dan menyebabkan bundle melebihi batas. Jika tetap gagal, aktifkan
+  Large Functions lewat environment variable `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`.
 - Batas body request Vercel adalah 4,5 MB, jadi upload dibatasi **4 MB**
   (depan dan belakang). Untuk gambar lebih besar, kompres dulu sebelum
   di-unggah.
