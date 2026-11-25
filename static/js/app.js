@@ -63,8 +63,8 @@ function showFile(file) {
     setStatus("Format file harus JPG, JPEG, atau PNG.", "error");
     return;
   }
-  if (file.size > 5 * 1024 * 1024) {
-    setStatus("Ukuran gambar maksimal 5 MB.", "error");
+  if (file.size > 4 * 1024 * 1024) {
+    setStatus("Ukuran gambar maksimal 4 MB.", "error");
     return;
   }
 

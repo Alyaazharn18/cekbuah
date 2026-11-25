@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
@@ -9,12 +10,21 @@ from flask import Flask, render_template, request, jsonify, url_for
 from PIL import Image, ImageOps
 from werkzeug.utils import secure_filename
 
+# Backend Keras ringan (CPU) agar bundle Vercel tetap di bawah batas ukuran.
+# TensorFlow tidak diperlukan untuk inference model .keras ini.
+os.environ.setdefault("KERAS_BACKEND", "jax")
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "ganti-dengan-secret-key-anda"
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # Maksimal 5 MB
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "ganti-dengan-secret-key-anda")
+# Batas body request Vercel Functions adalah 4,5 MB.
+app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024  # Maksimal 4 MB
 
 UPLOAD_FOLDER = Path(app.root_path) / "static" / "uploads"
-UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+try:
+    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+except OSError:
+    # Filesystem Vercel bersifat read-only; upload tidak disimpan di sana.
+    pass
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)
 
 MODEL_DIR = Path(app.root_path) / "model"
@@ -121,7 +131,14 @@ def predict():
     extension = safe_name.rsplit(".", 1)[1].lower()
     filename = f"{uuid4().hex}.{extension}"
     image_path = UPLOAD_FOLDER / filename
-    image_path.write_bytes(image_bytes)
+
+    # Simpan salinan hanya jika filesystem writable (tidak pada Vercel).
+    image_url = None
+    try:
+        image_path.write_bytes(image_bytes)
+        image_url = url_for("static", filename=f"uploads/{filename}")
+    except OSError:
+        app.logger.info("Upload folder tidak writable; lewati penyimpanan salinan gambar.")
 
     try:
         result = predict_freshness(image_bytes)
@@ -134,10 +151,13 @@ def predict():
             "predicted_class": result["predicted_class"],
             "is_uncertain": result["is_uncertain"],
             "all_probabilities": result["all_probabilities"],
-            "image_url": url_for("static", filename=f"uploads/{filename}")
+            "image_url": image_url
         })
     except Exception as exc:
-        image_path.unlink(missing_ok=True)
+        try:
+            image_path.unlink(missing_ok=True)
+        except OSError:
+            pass
         app.logger.exception("Terjadi kesalahan saat prediksi")
         return jsonify({"error": f"Prediksi gagal: {str(exc)}"}), 500
 
